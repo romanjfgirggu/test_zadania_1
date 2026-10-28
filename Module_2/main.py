@@ -5,6 +5,7 @@ import streamlit as st
 import plotly.express as px
 import pandas as pd
 import numpy as np
+import librosa
 
 st.set_page_config(
     page_title="Sales Dashboard",
@@ -15,10 +16,18 @@ st.set_page_config(
 @st.cache_data
 def load_data():
     with sqlite3.connect("../Module_1/datasets.sqlite") as conn:
-        return pd.read_sql(
+        df = pd.read_sql(
             sql="SELECT * FROM initial_table",
             con=conn
         )
+    folder = Path("../dataset/Soundwel Dataset - Audio and Spectrograms/")
+    colum = []
+    for file in folder.iterdir():
+        if file.suffix == ".wav":
+            audio, sr = librosa.load(file.absolute(), sr=None, mono=False)
+            duration = audio.shape[-1] / sr  # Длительность аудио
+            colum.append({"duration": duration})
+    return pd.concat([df, pd.DataFrame(colum)], axis=1)
 
 def sample_count():
     original_sample = 0
@@ -82,18 +91,29 @@ fig2 = px.bar(
 )
 st.plotly_chart(fig2, width="stretch")
 
-tab1, tab2, tab3, tab4 = st.tabs([
+distribution1, distribution2, distribution3, distribution4 = st.tabs([
     "Распределение записей по Context Category",
     "Распределение записей по Age Category",
     "Распределение записей по Sex",
     "Распределение записей по Call Type (Freq)"
 ])
 
-with tab1:
+with distribution1:
     st.plotly_chart(distribution_records(df, "Context Category", "Распределение записей по Context Category"), width="stretch")
-with tab2:
+with distribution2:
     st.plotly_chart(distribution_records(df, "Age Category", "Распределение записей по Age Category"), width="stretch")
-with tab3:
+with distribution3:
     st.plotly_chart(distribution_records(df, "Sex", "Распределение записей по Sex"), width="stretch")
-with tab4:
+with distribution4:
     st.plotly_chart(distribution_records(df, "Call Type (Freq)", "Распределение записей по Call Type (Freq)"), width="stretch")
+
+duration1, duration2, duration3 = st.tabs([
+    "Средняя длительность звуков по Valence",
+    "Медианная длительность звуков по Valence",
+    "Суммарная длительность звуков по Valence"
+])
+
+with duration1:
+    df[df["Valence"] == "Pos"]["duration"].mean()
+    df[df["Valence"] == "Pos"]["duration"].median()
+    df[df["Valence"] == "Pos"]["duration"].sum()
