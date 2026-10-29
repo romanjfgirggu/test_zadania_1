@@ -6,10 +6,11 @@ import plotly.express as px
 import pandas as pd
 import numpy as np
 import librosa
+from pandas.core.interchange.dataframe_protocol import DataFrame
+import matplotlib.pyplot as plt
 
 st.set_page_config(
-    page_title="Sales Dashboard",
-    page_icon="📊",
+    page_title="Dashboard",
     layout="wide"
 )
 
@@ -54,9 +55,14 @@ def distribution_records(table: pd.DataFrame, column: str, description: str):
         }
     )
 
+def mms(df: pd.DataFrame, valence = "Pos"):
+    return {"mean": df[df["Valence"] == valence]["duration"].mean(),
+            "meadian": df[df["Valence"] == valence]["duration"].median(),
+            "sum": df[df["Valence"] == valence]["duration"].sum()}
+
 df = load_data()
 
-st.title("📊 Sales Dashboard")
+st.title("Dashboard")
 
 st.subheader("Данные")
 st.dataframe(df, width="stretch")
@@ -113,7 +119,141 @@ duration1, duration2, duration3 = st.tabs([
     "Суммарная длительность звуков по Valence"
 ])
 
+pos = mms(df, "Pos")
+neg = mms(df, "Neg")
+
 with duration1:
-    df[df["Valence"] == "Pos"]["duration"].mean()
-    df[df["Valence"] == "Pos"]["duration"].median()
-    df[df["Valence"] == "Pos"]["duration"].sum()
+    st.plotly_chart(px.bar(
+        x=["Pos", "Neg"],
+        y=[pos["mean"], neg["mean"]],
+        title="Средняя длительность звуков по Valence",
+        text_auto=True,
+        labels={
+            "x": "Классы",
+            "y": "Длительность"
+        }
+    ))
+with duration2:
+    st.plotly_chart(px.bar(
+        x=["Pos", "Neg"],
+        y=[pos["meadian"], neg["meadian"]],
+        title="Средняя длительность звуков по Valence",
+        text_auto=True,
+        labels={
+            "x": "Классы",
+            "y": "Длительность"
+        }
+    ))
+with duration3:
+    st.plotly_chart(px.bar(
+        x=["Pos", "Neg"],
+        y=[pos["sum"], neg["sum"]],
+        title="Средняя длительность звуков по Valence",
+        text_auto=True,
+        labels={
+            "x": "Классы",
+            "y": "Длительность"
+        }
+    ))
+
+
+
+
+
+
+if "audio_index" not in st.session_state:
+    st.session_state.audio_index = 0
+
+# Защита при изменении количества записей
+st.session_state.audio_index = min(
+    st.session_state.audio_index,
+    len(df) - 1
+)
+
+# Навигация
+prev_col, counter_col, next_col = st.columns([1, 2, 1])
+
+with prev_col:
+    if st.button(
+        "⬅️ Назад",
+        disabled=st.session_state.audio_index == 0,
+        use_container_width=True
+    ):
+        st.session_state.audio_index -= 1
+
+with next_col:
+    if st.button(
+        "Вперёд ➡️",
+        disabled=st.session_state.audio_index == len(df) - 1,
+        use_container_width=True
+    ):
+        st.session_state.audio_index += 1
+
+index = st.session_state.audio_index
+record = df.iloc[index]
+
+with counter_col:
+    st.markdown(f"**Запись {index + 1} из {len(df)}**")
+
+filename = record["Audio Filename"]
+audio_path = Path("../dataset/Soundwel Dataset - Audio and Spectrograms/" + filename)
+
+
+with st.container(border=True):
+    st.subheader("Аудиозапись")
+    st.caption(filename)
+
+    if audio_path.is_file():
+        st.audio(str(audio_path), format="audio/wav")
+    else:
+        st.warning(f"Аудиофайл не найден: {audio_path}")
+
+    st.divider()
+
+    st.subheader("Описание")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown(
+            f"**Возрастная категория:** {record['Age Category']}"
+        )
+        st.markdown(
+            f"**Valence:** {record['Valence']}"
+        )
+
+    with col2:
+        st.metric(
+            "Длительность",
+            f"{record['duration']:.2f} сек."
+        )
+
+y, sr = librosa.load(audio_path, sr=16000)
+# STFT
+S = librosa.stft(
+    y,
+    n_fft=1024,
+    hop_length=256
+)
+
+# Амплитуда -> dB
+S_db = librosa.amplitude_to_db(
+    np.abs(S),
+    ref=np.max
+)
+
+# Визуализация
+librosa.display.specshow(
+    S_db,
+    sr=sr,
+    hop_length=256,
+    x_axis="time",
+    y_axis="linear",
+    cmap="magma"
+)
+
+plt.colorbar(format="%+2.0f dB")
+
+# Вывод в Streamlit вместо plt.show()
+st.pyplot(plt.gcf())
+plt.close()
