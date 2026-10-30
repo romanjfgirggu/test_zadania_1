@@ -229,6 +229,7 @@ with st.container(border=True):
         )
 
 y, sr = librosa.load(audio_path, sr=16000)
+
 # STFT
 S = librosa.stft(
     y,
@@ -242,18 +243,26 @@ S_db = librosa.amplitude_to_db(
     ref=np.max
 )
 
+# Создаём график нужного размера
+fig, ax = plt.subplots(figsize=(8, 3))
+
 # Визуализация
-librosa.display.specshow(
+img = librosa.display.specshow(
     S_db,
     sr=sr,
     hop_length=256,
     x_axis="time",
     y_axis="linear",
-    cmap="magma"
+    cmap="magma",
+    ax=ax
 )
 
-plt.colorbar(format="%+2.0f dB")
+fig.colorbar(img, ax=ax, format="%+2.0f dB")
 
-# Вывод в Streamlit вместо plt.show()
-st.pyplot(plt.gcf())
-plt.close()
+# Вывод в Streamlit
+st.pyplot(fig, width="content")
+
+if st.button("Сохранить в png"):
+    fig.savefig(f"spec_save/spectrogram_{st.session_state.audio_index}.png")
+    st.success(f"Файл успешно сохранён по пути spec_save/spectrogram_{st.session_state.audio_index}.png!")
+plt.close(fig)
